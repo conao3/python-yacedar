@@ -19,7 +19,6 @@ request = yacedar.Request(
     principal = yacedar.EntityUid('User', 'alice'),
     action = yacedar.EntityUid('Action', 'update'),
     resource = yacedar.EntityUid('Photo', 'VacationPhoto94.jpg'),
-    context = yacedar.Context({})
 )
 
 authorizer = yacedar.Authorizer()

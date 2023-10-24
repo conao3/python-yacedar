@@ -11,7 +11,13 @@ class Context:
     def __new__(cls, value: dict[str, Any]) -> Context: ...
 
 class Request:
-    def __new__(cls, principal: EntityUid | None, action: EntityUid | None, resource: EntityUid | None, context: Context | None) -> Request: ...
+    def __new__(
+        cls,
+        principal: EntityUid | None = None,
+        action: EntityUid | None = None,
+        resource: EntityUid | None = None,
+        context: Context | None = None,
+    ) -> Request: ...
 
 class PolicySet:
     def __new__(cls, policies_str: str) -> PolicySet: ...
