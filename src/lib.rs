@@ -90,30 +90,52 @@ impl Authorizer {
 
     fn is_authorized(&self, request: &Request, policy_set: &PolicySet, entities: &Entities) -> Response {
         let response = self.0.is_authorized(&request.0, &policy_set.0, &entities.0);
-        Response(response)
+        Response::create(response)
     }
 }
 
 #[pyclass]
-struct Response(cedar::Response);
+struct Response{
+    response: cedar::Response,
+    decision: Decision,
+    allowed: bool,
+}
+
+impl Response {
+    fn create(response: cedar::Response) -> Self {
+        let desision = match response.decision() {
+            cedar::Decision::Allow => Decision::Allow,
+            cedar::Decision::Deny => Decision::Deny,
+        };
+        let allowed = response.decision() == cedar::Decision::Allow;
+
+        Self {
+            response: response,
+            decision: desision,
+            allowed: allowed,
+        }
+    }
+}
 
 #[pymethods]
 impl Response {
+    fn diagnostics(&self) -> String {
+        self.response.diagnostics().reason().map(|r| r.to_string()).collect()
+    }
+
     #[getter]
     fn decision(&self) -> Decision {
-        match self.0.decision() {
-            cedar::Decision::Allow => Decision::Allow,
-            cedar::Decision::Deny => Decision::Deny,
-        }
+        self.decision.clone()
     }
 
     #[getter]
     fn allowed(&self) -> bool {
-        return self.0.decision() == cedar::Decision::Allow
+        self.allowed
     }
 }
 
 #[pyclass]
+#[derive(Clone)]
 enum Decision {
     Allow,
     Deny,

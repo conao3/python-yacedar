@@ -27,6 +27,8 @@ class Response:
     decision: Decision
     allowed: bool
 
+    def diagnostics(self) -> str: ...
+
 class Decision(enum.Enum):
     Allow = enum.auto()
     Deny = enum.auto()
