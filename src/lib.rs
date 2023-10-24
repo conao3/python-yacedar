@@ -88,8 +88,11 @@ impl Authorizer {
         Self(cedar::Authorizer::new())
     }
 
-    fn is_authorized(&self, request: &Request, policy_set: &PolicySet, entities: &Entities) -> Response {
-        let response = self.0.is_authorized(&request.0, &policy_set.0, &entities.0);
+    fn is_authorized(&self, request: &Request, policy_set: &PolicySet, entities: Option<&Entities>) -> Response {
+        let response = match entities {
+            Some(entities) => self.0.is_authorized(&request.0, &policy_set.0, &entities.0),
+            None => self.0.is_authorized(&request.0, &policy_set.0, &cedar::Entities::empty()),
+        };
         Response::create(response)
     }
 }

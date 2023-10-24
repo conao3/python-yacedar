@@ -13,8 +13,6 @@ permit(
 );
 ''')
 
-entities = yacedar.Entities([])
-
 request = yacedar.Request(
     principal = yacedar.EntityUid('User', 'alice'),
     action = yacedar.EntityUid('Action', 'view'),
@@ -22,7 +20,7 @@ request = yacedar.Request(
 )
 
 authorizer = yacedar.Authorizer()
-response = authorizer.is_authorized(request, policy_set, entities)
+response = authorizer.is_authorized(request, policy_set)
 
 # expected: True
 print(response.allowed)
