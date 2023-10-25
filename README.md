@@ -1,6 +1,6 @@
 # python-yacedar
 
-Simple, straitforward wrapper for Rust [Cedar policy language](https://github.com/cedar-policy/cedar).
+Simple, straitforward Python bindings for Rust [Cedar policy language](https://github.com/cedar-policy/cedar).
 
 
 # Installation
