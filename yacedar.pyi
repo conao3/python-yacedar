@@ -31,7 +31,7 @@ class Authorizer:
 
 class Response:
     decision: Decision
-    allowed: bool
+    is_allowed: bool
 
     def diagnostics(self) -> str: ...
 

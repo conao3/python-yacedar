@@ -101,7 +101,7 @@ impl Authorizer {
 struct Response{
     response: cedar::Response,
     decision: Decision,
-    allowed: bool,
+    is_allowed: bool,
 }
 
 impl Response {
@@ -115,7 +115,7 @@ impl Response {
         Self {
             response: response,
             decision: desision,
-            allowed: allowed,
+            is_allowed: allowed,
         }
     }
 }
@@ -132,8 +132,8 @@ impl Response {
     }
 
     #[getter]
-    fn allowed(&self) -> bool {
-        self.allowed
+    fn is_allowed(&self) -> bool {
+        self.is_allowed
     }
 }
 

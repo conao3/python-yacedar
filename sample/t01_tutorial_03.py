@@ -23,4 +23,4 @@ authorizer = yacedar.Authorizer()
 response = authorizer.is_authorized(request, policy_set)
 
 # expected: True
-print(response.allowed)
+print(response.is_allowed)
