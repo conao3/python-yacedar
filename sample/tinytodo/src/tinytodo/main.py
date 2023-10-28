@@ -79,6 +79,23 @@ class TinyTodoShell(cmd.Cmd):
 
         raise RuntimeError('Task not found')
 
+    def _parse_list_name(self, list_name: str) -> tuple[TUserName, TListName]:
+        if '/' in list_name:
+            owner, list_name = list_name.split('/', 1)
+
+            if '/' in list_name:
+                raise RuntimeError('Invalid list name: Use of "/" in list name is not allowed')
+
+            owner = TUserName(owner)
+            list_name = TListName(list_name)
+
+        else:
+            assert self._assert_login(self.__login)
+            owner = self.__login
+            list_name = TListName(list_name)
+
+        return owner, list_name
+
     def do_login(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(1, args, 'login <user_name>')
@@ -99,7 +116,7 @@ class TinyTodoShell(cmd.Cmd):
         list_name = TListName(args[0])
 
         if '/' in list_name:
-            raise RuntimeError('Invalid list name: Use of "/" is not allowed')
+            raise RuntimeError('Invalid list name: Use of "/" in list name is not allowed')
 
         if any((self.__login, list_name) == elm for elm in [(elm.owner, elm.list_name) for elm in self.__lists]):
             raise RuntimeError('List already exists')
@@ -119,31 +136,18 @@ class TinyTodoShell(cmd.Cmd):
 
     def do_delete_list(self, line: str) -> None:
         args = shlex.split(line)
-        self._assert_args_len(1, args, 'delete_list <list_name>')
-        assert self._assert_login(self.__login)
+        self._assert_args_len(1, args, 'delete_list [<owner_name>/]<list_name>')
 
-        list_name = TListName(args[0])
+        owner, list_name = self._parse_list_name(args[0])
 
-        i, _ = self._get_list(self.__login, list_name)
+        i, _ = self._get_list(owner, list_name)
         del self.__lists[i]
 
     def do_put_task(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(2, args, 'put_task [<owner_name>/]<list_name> <task_name>')
 
-        if '/' in args[0]:
-            owner, list_name = args[0].split('/', 1)
-
-            if '/' in list_name:
-                raise RuntimeError('Invalid list name: Use of "/" is not allowed')
-
-            owner = TUserName(owner)
-            list_name = TListName(list_name)
-        else:
-            assert self._assert_login(self.__login)
-            owner = self.__login
-            list_name = TListName(args[0])
-
+        owner, list_name = self._parse_list_name(args[0])
         task_name = TTaskName(args[1])
 
         task, _ = trap(lambda: self._get_task(owner, list_name, task_name))
@@ -156,12 +160,11 @@ class TinyTodoShell(cmd.Cmd):
 
     def do_list_tasks(self, line: str) -> None:
         args = shlex.split(line)
-        self._assert_args_len(1, args, 'list_tasks <list_name>')
-        assert self._assert_login(self.__login)
+        self._assert_args_len(1, args, 'list_tasks [<owner_name>/]<list_name>')
 
-        list_name = TListName(args[0])
+        owner, list_name = self._parse_list_name(args[0])
 
-        _, list_ = self._get_list(self.__login, list_name)
+        _, list_ = self._get_list(owner, list_name)
         for task in list_.tasks:
             print(task.disp())
 
@@ -169,19 +172,7 @@ class TinyTodoShell(cmd.Cmd):
         args = shlex.split(line)
         self._assert_args_len(2, args, 'toggle_task [<owner_name>/]<list_name> <task_name>')
 
-        if '/' in args[0]:
-            owner, list_name = args[0].split('/', 1)
-
-            if '/' in list_name:
-                raise RuntimeError('Invalid list name: Use of "/" is not allowed')
-
-            owner = TUserName(owner)
-            list_name = TListName(list_name)
-        else:
-            assert self._assert_login(self.__login)
-            owner = self.__login
-            list_name = TListName(args[0])
-
+        owner, list_name = self._parse_list_name(args[0])
         task_name = TTaskName(args[1])
 
         _, _, task = self._get_task(owner, list_name, task_name)
@@ -192,19 +183,7 @@ class TinyTodoShell(cmd.Cmd):
         args = shlex.split(line)
         self._assert_args_len(2, args, 'delete_task [<owner_name>/]<list_name> <task_name>')
 
-        if '/' in args[0]:
-            owner, list_name = args[0].split('/', 1)
-
-            if '/' in list_name:
-                raise RuntimeError('Invalid list name: Use of "/" is not allowed')
-
-            owner = TUserName(owner)
-            list_name = TListName(list_name)
-        else:
-            assert self._assert_login(self.__login)
-            owner = self.__login
-            list_name = TListName(args[0])
-
+        owner, list_name = self._parse_list_name(args[0])
         task_name = TTaskName(args[1])
 
         list_, i, _ = self._get_task(owner, list_name, task_name)
