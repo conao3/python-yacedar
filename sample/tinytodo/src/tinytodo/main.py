@@ -14,11 +14,6 @@ class InvalidArgumentError(Exception):
     pass
 
 
-def assert_args_len(expected_len: int, args: list[str], help: str) -> None:
-    if len(args) != expected_len:
-        raise InvalidArgumentError(help)
-
-
 class TinyTodoShell(cmd.Cmd):
     intro = 'Welcome to the tinytodo shell. Type help or ? to list commands.\n'
     prompt = 'tinytodo(guest)> '
@@ -26,23 +21,25 @@ class TinyTodoShell(cmd.Cmd):
     __login: Optional[TUserName] = TUserName('guest')
     __lists: dict[TUserName, TList] = {}
 
+    def _assert_args_len(self, expected_len: int, args: list[str], help: str) -> None:
+        if len(args) != expected_len:
+            raise InvalidArgumentError(help)
+
     def do_login(self, line: str) -> None:
         args = shlex.split(line)
-        assert_args_len(1, args, 'login <user_name>')
+        self._assert_args_len(1, args, 'login <user_name>')
 
-        user_name = TUserName(args[0])
-
-        self.__login = user_name
+        self.__login = TUserName(args[0])
 
     def do_logout(self, line: str) -> None:
         args = shlex.split(line)
-        assert_args_len(0, args, 'logout')
+        self._assert_args_len(0, args, 'logout')
 
         self.__login = None
 
     def do_put_list(self, line: str) -> None:
         args = shlex.split(line)
-        assert_args_len(1, args, 'put_list <list_name>')
+        self._assert_args_len(1, args, 'put_list <list_name>')
 
         list_name = TListName(args[0])
 
@@ -61,7 +58,7 @@ class TinyTodoShell(cmd.Cmd):
 
     def do_list_lists(self, line: str) -> None:
         args = shlex.split(line)
-        assert_args_len(0, args, 'list_lists')
+        self._assert_args_len(0, args, 'list_lists')
 
         if self.__login is None:
             print('ERROR(RuntimeError): Not logged in')
@@ -75,7 +72,7 @@ class TinyTodoShell(cmd.Cmd):
 
     def do_delete_list(self, line: str) -> None:
         args = shlex.split(line)
-        assert_args_len(1, args, 'delete_list <list_name>')
+        self._assert_args_len(1, args, 'delete_list <list_name>')
 
         list_name = TListName(args[0])
 
@@ -95,7 +92,7 @@ class TinyTodoShell(cmd.Cmd):
 
     def do_put_task(self, line: str) -> None:
         args = shlex.split(line)
-        assert_args_len(2, args, 'put_task <list_name> <task_name>')
+        self._assert_args_len(2, args, 'put_task <list_name> <task_name>')
 
         list_name = TListName(args[0])
         task_name = TTask(args[1])
@@ -120,7 +117,7 @@ class TinyTodoShell(cmd.Cmd):
 
     def do_list_tasks(self, line: str) -> None:
         args = shlex.split(line)
-        assert_args_len(1, args, 'list_tasks <list_name>')
+        self._assert_args_len(1, args, 'list_tasks <list_name>')
 
         list_name = TListName(args[0])
 
@@ -141,7 +138,7 @@ class TinyTodoShell(cmd.Cmd):
 
     def do_toggle_task(self, line: str) -> None:
         args = shlex.split(line)
-        assert_args_len(2, args, 'toggle_task <list_name> <task_name>')
+        self._assert_args_len(2, args, 'toggle_task <list_name> <task_name>')
 
         list_name = TListName(args[0])
         task_name = TTask(args[1])
@@ -166,7 +163,7 @@ class TinyTodoShell(cmd.Cmd):
 
     def do_delete_task(self, line: str) -> None:
         args = shlex.split(line)
-        assert_args_len(2, args, 'delete_task <list_name> <task_name>')
+        self._assert_args_len(2, args, 'delete_task <list_name> <task_name>')
 
         list_name = TListName(args[0])
         task_name = TTask(args[1])
