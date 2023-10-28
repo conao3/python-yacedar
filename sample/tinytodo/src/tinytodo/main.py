@@ -112,11 +112,15 @@ class TinyTodoShell(cmd.Cmd):
         if self.__login not in self.__lists:
             self.__lists[self.__login] = TUser()
 
+        print(f'Logged in as {self.__login}')
+
     def do_logout(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(0, args, 'logout')
 
         self.__login = TUserName('guest')
+
+        print(f'Logged out.  Now you are {self.__login}')
 
     def do_put_list(self, line: str) -> None:
         args = shlex.split(line)
@@ -126,6 +130,8 @@ class TinyTodoShell(cmd.Cmd):
         list_no = user.new_list_no()
 
         user.lists[list_no] = TList(self.__login, list_no, args[0])
+
+        print(f'List {list_no} created.')
 
     def do_get_lists(self, line: str) -> None:
         args = shlex.split(line)
@@ -150,6 +156,8 @@ class TinyTodoShell(cmd.Cmd):
 
         del self.__lists[self.__login].lists[list_no]
 
+        print(f'List {list_no} deleted.')
+
     def do_put_task(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(2, args, 'put_task <list_no> <task_name>')
@@ -162,6 +170,8 @@ class TinyTodoShell(cmd.Cmd):
 
         list_.tasks[task_no] = TTask(task_no, args[1])
 
+        print(f'Task {task_no} created on List {list_no}.')
+
     def do_toggle_task(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(2, args, 'toggle_task [<owner_name>/]<list_no> <task_no>')
@@ -172,6 +182,8 @@ class TinyTodoShell(cmd.Cmd):
         task = self.__lists[self.__login].lists[list_no].tasks[task_no]
         task.status = not task.status
 
+        print(f'Task {task_no} toggled on List {list_no}.')
+
     def do_delete_task(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(2, args, 'delete_task [<owner_name>/]<list_no> <task_no>')
@@ -180,6 +192,8 @@ class TinyTodoShell(cmd.Cmd):
         task_no = TTaskNo(int(args[1]))
 
         del self.__lists[self.__login].lists[list_no].tasks[task_no]
+
+        print(f'Task {task_no} deleted on List {list_no}.')
 
     def onecmd(self, line: str) -> bool:
         try:
