@@ -54,8 +54,7 @@ class TinyTodoShell(cmd.Cmd):
             self.__lists[self.__login] = TList({list_name: {}})
         else:
             if list_name in dct:
-                print('ERROR(RuntimeError): List already exists')
-                return
+                raise RuntimeError('List already exists')
 
             self.__lists[self.__login][list_name] = {}
 
@@ -65,8 +64,7 @@ class TinyTodoShell(cmd.Cmd):
         assert self._assert_login(self.__login)
 
         if (lists := self.__lists.get(self.__login)) is None:
-            print('ERROR(RuntimeError): No lists found')
-            return
+            raise RuntimeError('No lists found')
 
         self.columnize([str(elm) for elm in lists])
 
@@ -78,12 +76,10 @@ class TinyTodoShell(cmd.Cmd):
         list_name = TListName(args[0])
 
         if (dct := self.__lists.get(self.__login)) is None:
-            print('ERROR(RuntimeError): No lists found')
-            return
+            raise RuntimeError('No lists found')
 
         if list_name not in dct:
-            print('ERROR(RuntimeError): List not found')
-            return
+            raise RuntimeError('List not found')
 
         del dct[list_name]
 
@@ -96,16 +92,13 @@ class TinyTodoShell(cmd.Cmd):
         task_name = TTask(args[1])
 
         if (dct := self.__lists.get(self.__login)) is None:
-            print('ERROR(RuntimeError): No lists found')
-            return
+            raise RuntimeError('No lists found')
 
         if (list_ := dct.get(list_name)) is None:
-            print('ERROR(RuntimeError): List not found')
-            return
+            raise RuntimeError('List not found')
 
         if task_name in list_:
-            print('ERROR(RuntimeError): Task already exists')
-            return
+            raise RuntimeError('Task already exists')
 
         list_[task_name] = False
 
@@ -117,12 +110,10 @@ class TinyTodoShell(cmd.Cmd):
         list_name = TListName(args[0])
 
         if (dct := self.__lists.get(self.__login)) is None:
-            print('ERROR(RuntimeError): No lists found')
-            return
+            raise RuntimeError('No lists found')
 
         if (list_ := dct.get(list_name)) is None:
-            print('ERROR(RuntimeError): List not found')
-            return
+            raise RuntimeError('List not found')
 
         for i, (task_name, status) in enumerate(list_.items()):
             print(f'{i+1}) {task_name}: {status}')
@@ -136,16 +127,13 @@ class TinyTodoShell(cmd.Cmd):
         task_name = TTask(args[1])
 
         if (dct := self.__lists.get(self.__login)) is None:
-            print('ERROR(RuntimeError): No lists found')
-            return
+            raise RuntimeError('No lists found')
 
         if (list_ := dct.get(list_name)) is None:
-            print('ERROR(RuntimeError): List not found')
-            return
+            raise RuntimeError('List not found')
 
         if (status := list_.get(task_name)) is None:
-            print('ERROR(RuntimeError): Task not found')
-            return
+            raise RuntimeError('Task not found')
 
         list_[task_name] = not status
 
@@ -158,16 +146,13 @@ class TinyTodoShell(cmd.Cmd):
         task_name = TTask(args[1])
 
         if (dct := self.__lists.get(self.__login)) is None:
-            print('ERROR(RuntimeError): No lists found')
-            return
+            raise RuntimeError('No lists found')
 
         if (list_ := dct.get(list_name)) is None:
-            print('ERROR(RuntimeError): List not found')
-            return
+            raise RuntimeError('List not found')
 
         if task_name not in list_:
-            print('ERROR(RuntimeError): Task not found')
-            return
+            raise RuntimeError('Task not found')
 
         del list_[task_name]
 
