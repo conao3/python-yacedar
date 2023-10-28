@@ -1,7 +1,7 @@
 import argparse
 import cmd
 import shlex
-from typing import NewType, Optional
+from typing import NewType, Optional, TypeGuard
 
 
 TUserName = NewType('TUserName', str)
@@ -25,6 +25,12 @@ class TinyTodoShell(cmd.Cmd):
         if len(args) != expected_len:
             raise InvalidArgumentError(help)
 
+    def _assert_login(self, arg: Optional[TUserName]) -> TypeGuard[TUserName]:
+        if not self.__login:
+            raise RuntimeError('Not logged in')
+
+        return True
+
     def do_login(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(1, args, 'login <user_name>')
@@ -40,12 +46,9 @@ class TinyTodoShell(cmd.Cmd):
     def do_put_list(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(1, args, 'put_list <list_name>')
+        assert self._assert_login(self.__login)
 
         list_name = TListName(args[0])
-
-        if not self.__login:
-            print('ERROR(RuntimeError): Not logged in')
-            return
 
         if (dct := self.__lists.get(self.__login)) is None:
             self.__lists[self.__login] = TList({list_name: {}})
@@ -59,10 +62,7 @@ class TinyTodoShell(cmd.Cmd):
     def do_list_lists(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(0, args, 'list_lists')
-
-        if self.__login is None:
-            print('ERROR(RuntimeError): Not logged in')
-            return
+        assert self._assert_login(self.__login)
 
         if (lists := self.__lists.get(self.__login)) is None:
             print('ERROR(RuntimeError): No lists found')
@@ -73,12 +73,9 @@ class TinyTodoShell(cmd.Cmd):
     def do_delete_list(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(1, args, 'delete_list <list_name>')
+        assert self._assert_login(self.__login)
 
         list_name = TListName(args[0])
-
-        if not self.__login:
-            print('ERROR(RuntimeError): Not logged in')
-            return
 
         if (dct := self.__lists.get(self.__login)) is None:
             print('ERROR(RuntimeError): No lists found')
@@ -93,13 +90,10 @@ class TinyTodoShell(cmd.Cmd):
     def do_put_task(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(2, args, 'put_task <list_name> <task_name>')
+        assert self._assert_login(self.__login)
 
         list_name = TListName(args[0])
         task_name = TTask(args[1])
-
-        if not self.__login:
-            print('ERROR(RuntimeError): Not logged in')
-            return
 
         if (dct := self.__lists.get(self.__login)) is None:
             print('ERROR(RuntimeError): No lists found')
@@ -118,12 +112,9 @@ class TinyTodoShell(cmd.Cmd):
     def do_list_tasks(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(1, args, 'list_tasks <list_name>')
+        assert self._assert_login(self.__login)
 
         list_name = TListName(args[0])
-
-        if not self.__login:
-            print('ERROR(RuntimeError): Not logged in')
-            return
 
         if (dct := self.__lists.get(self.__login)) is None:
             print('ERROR(RuntimeError): No lists found')
@@ -139,13 +130,10 @@ class TinyTodoShell(cmd.Cmd):
     def do_toggle_task(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(2, args, 'toggle_task <list_name> <task_name>')
+        assert self._assert_login(self.__login)
 
         list_name = TListName(args[0])
         task_name = TTask(args[1])
-
-        if not self.__login:
-            print('ERROR(RuntimeError): Not logged in')
-            return
 
         if (dct := self.__lists.get(self.__login)) is None:
             print('ERROR(RuntimeError): No lists found')
@@ -164,13 +152,10 @@ class TinyTodoShell(cmd.Cmd):
     def do_delete_task(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(2, args, 'delete_task <list_name> <task_name>')
+        assert self._assert_login(self.__login)
 
         list_name = TListName(args[0])
         task_name = TTask(args[1])
-
-        if not self.__login:
-            print('ERROR(RuntimeError): Not logged in')
-            return
 
         if (dct := self.__lists.get(self.__login)) is None:
             print('ERROR(RuntimeError): No lists found')
