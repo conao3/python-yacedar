@@ -1,7 +1,7 @@
 import argparse
 import cmd
 import shlex
-from typing import Callable, Literal, NewType, Optional, TypeGuard
+from typing import Callable, Literal, NewType
 
 
 def trap[T](fn: Callable[[], T]) -> tuple[T, Literal[None]] | tuple[Literal[None], Exception]:
@@ -50,18 +50,12 @@ class TinyTodoShell(cmd.Cmd):
     intro = 'Welcome to the tinytodo shell. Type help or ? to list commands.\n'
     prompt = 'tinytodo(guest)> '
 
-    __login: Optional[TUserName] = TUserName('guest')
+    __login: TUserName = TUserName('guest')
     __lists: list[TList] = []
 
     def _assert_args_len(self, expected_len: int, args: list[str], help: str) -> None:
         if len(args) != expected_len:
             raise InvalidArgumentError(help)
-
-    def _assert_login(self, arg: Optional[TUserName]) -> TypeGuard[TUserName]:
-        if self.__login is None:
-            raise RuntimeError('Not logged in')
-
-        return True
 
     def _get_list(self, owner: TUserName, list_name: TListName) -> tuple[int, TList]:
         for i, list_ in enumerate(self.__lists):
@@ -90,7 +84,6 @@ class TinyTodoShell(cmd.Cmd):
             list_name = TListName(list_name)
 
         else:
-            assert self._assert_login(self.__login)
             owner = self.__login
             list_name = TListName(list_name)
 
@@ -106,12 +99,11 @@ class TinyTodoShell(cmd.Cmd):
         args = shlex.split(line)
         self._assert_args_len(0, args, 'logout')
 
-        self.__login = None
+        self.__login = TUserName('guest')
 
     def do_put_list(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(1, args, 'put_list <list_name>')
-        assert self._assert_login(self.__login)
 
         list_name = TListName(args[0])
 
@@ -126,7 +118,6 @@ class TinyTodoShell(cmd.Cmd):
     def do_list_lists(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(0, args, 'list_lists')
-        assert self._assert_login(self.__login)
 
         for list_ in self.__lists:
             if not list_.owner == self.__login:
