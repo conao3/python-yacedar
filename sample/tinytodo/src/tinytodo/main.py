@@ -21,6 +21,9 @@ class TTask:
         self.task_name = task_name
         self.status = False
 
+    def disp(self) -> str:
+        return f'{"[x]" if self.status else "[ ]"} {self.task_name}'
+
 
 class TList:
     def __init__(
@@ -149,7 +152,7 @@ class TinyTodoShell(cmd.Cmd):
 
         _, list_ = self._get_list(self.__login, list_name)
         for task in list_.tasks:
-            print(f'{"[x]" if task.status else "[ ]"} {task.task_name}')
+            print(task.disp())
 
     def do_toggle_task(self, line: str) -> None:
         args = shlex.split(line)
