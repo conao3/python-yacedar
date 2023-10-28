@@ -1,13 +1,39 @@
 import argparse
 import cmd
 import shlex
-from typing import NewType, Optional, TypeGuard
+from typing import Callable, Literal, NewType, Optional, TypeGuard
+
+
+def trap[T](fn: Callable[[], T]) -> tuple[T, Literal[None]] | tuple[Literal[None], Exception]:
+    try:
+        return fn(), None
+    except Exception as e:
+        return None, e
 
 
 TUserName = NewType('TUserName', str)
-TTask = NewType('TTask', str)
+TTaskName = NewType('TTaskName', str)
 TListName = NewType('TListName', str)
-TList = NewType('TList', dict[TListName, dict[TTask, bool]])
+
+
+class TTask:
+    def __init__(self, task_name: TTaskName) -> None:
+        self.task_name = task_name
+        self.status = False
+
+
+class TList:
+    def __init__(
+        self,
+        owner: TUserName,
+        list_name: TListName,
+        tasks: list[TTask]
+    ) -> None:
+        self.owner = owner
+        self.list_name = list_name
+        self.tasks = tasks
+        self.readers: list[TUserName] = []
+        self.editors: list[TUserName] = []
 
 
 class InvalidArgumentError(Exception):
@@ -19,17 +45,33 @@ class TinyTodoShell(cmd.Cmd):
     prompt = 'tinytodo(guest)> '
 
     __login: Optional[TUserName] = TUserName('guest')
-    __lists: dict[TUserName, TList] = {}
+    __lists: list[TList] = []
 
     def _assert_args_len(self, expected_len: int, args: list[str], help: str) -> None:
         if len(args) != expected_len:
             raise InvalidArgumentError(help)
 
     def _assert_login(self, arg: Optional[TUserName]) -> TypeGuard[TUserName]:
-        if not self.__login:
+        if self.__login is None:
             raise RuntimeError('Not logged in')
 
         return True
+
+    def _get_list(self, owner: TUserName, list_name: TListName) -> tuple[int, TList]:
+        for i, list_ in enumerate(self.__lists):
+            if list_.owner == owner and list_.list_name == list_name:
+                return i, list_
+
+        raise RuntimeError('List not found')
+
+    def _get_task(self, owner: TUserName, list_name: TListName, task_name: TTaskName) -> tuple[TList, int, TTask]:
+        _, list_ = self._get_list(owner, list_name)
+
+        for i, task in enumerate(list_.tasks):
+            if task.task_name == task_name:
+                return list_, i, task
+
+        raise RuntimeError('Task not found')
 
     def do_login(self, line: str) -> None:
         args = shlex.split(line)
@@ -50,23 +92,25 @@ class TinyTodoShell(cmd.Cmd):
 
         list_name = TListName(args[0])
 
-        if (dct := self.__lists.get(self.__login)) is None:
-            self.__lists[self.__login] = TList({list_name: {}})
-        else:
-            if list_name in dct:
-                raise RuntimeError('List already exists')
+        if any((self.__login, list_name) == elm for elm in [(elm.owner, elm.list_name) for elm in self.__lists]):
+            raise RuntimeError('List already exists')
 
-            self.__lists[self.__login][list_name] = {}
+        self.__lists.append(TList(self.__login, list_name, []))
 
     def do_list_lists(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(0, args, 'list_lists')
         assert self._assert_login(self.__login)
 
-        if (lists := self.__lists.get(self.__login)) is None:
-            raise RuntimeError('No lists found')
+        for list_ in self.__lists:
+            if not (
+                list_.owner == self.__login or
+                self.__login in list_.readers or
+                self.__login in list_.editors
+            ):
+                continue
 
-        self.columnize([str(elm) for elm in lists])
+            print(list_.list_name)
 
     def do_delete_list(self, line: str) -> None:
         args = shlex.split(line)
@@ -75,32 +119,26 @@ class TinyTodoShell(cmd.Cmd):
 
         list_name = TListName(args[0])
 
-        if (dct := self.__lists.get(self.__login)) is None:
-            raise RuntimeError('No lists found')
-
-        if list_name not in dct:
-            raise RuntimeError('List not found')
-
-        del dct[list_name]
+        i, _ = self._get_list(self.__login, list_name)
+        del self.__lists[i]
 
     def do_put_task(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(2, args, 'put_task <list_name> <task_name>')
         assert self._assert_login(self.__login)
 
+        owner = self.__login
         list_name = TListName(args[0])
-        task_name = TTask(args[1])
+        task_name = TTaskName(args[1])
 
-        if (dct := self.__lists.get(self.__login)) is None:
-            raise RuntimeError('No lists found')
+        task, _ = trap(lambda: self._get_task(owner, list_name, task_name))
 
-        if (list_ := dct.get(list_name)) is None:
-            raise RuntimeError('List not found')
-
-        if task_name in list_:
+        if task is not None:
             raise RuntimeError('Task already exists')
 
-        list_[task_name] = False
+        _, list_ = self._get_list(owner, list_name)
+        list_.tasks.append(TTask(task_name))
+
 
     def do_list_tasks(self, line: str) -> None:
         args = shlex.split(line)
@@ -109,14 +147,9 @@ class TinyTodoShell(cmd.Cmd):
 
         list_name = TListName(args[0])
 
-        if (dct := self.__lists.get(self.__login)) is None:
-            raise RuntimeError('No lists found')
-
-        if (list_ := dct.get(list_name)) is None:
-            raise RuntimeError('List not found')
-
-        for i, (task_name, status) in enumerate(list_.items()):
-            print(f'{i+1}) {task_name}: {status}')
+        _, list_ = self._get_list(self.__login, list_name)
+        for task in list_.tasks:
+            print(f'{"[x]" if task.status else "[ ]"} {task.task_name}')
 
     def do_toggle_task(self, line: str) -> None:
         args = shlex.split(line)
@@ -124,18 +157,11 @@ class TinyTodoShell(cmd.Cmd):
         assert self._assert_login(self.__login)
 
         list_name = TListName(args[0])
-        task_name = TTask(args[1])
+        task_name = TTaskName(args[1])
 
-        if (dct := self.__lists.get(self.__login)) is None:
-            raise RuntimeError('No lists found')
+        _, _, task = self._get_task(self.__login, list_name, task_name)
 
-        if (list_ := dct.get(list_name)) is None:
-            raise RuntimeError('List not found')
-
-        if (status := list_.get(task_name)) is None:
-            raise RuntimeError('Task not found')
-
-        list_[task_name] = not status
+        task.status = not task.status
 
     def do_delete_task(self, line: str) -> None:
         args = shlex.split(line)
@@ -143,18 +169,10 @@ class TinyTodoShell(cmd.Cmd):
         assert self._assert_login(self.__login)
 
         list_name = TListName(args[0])
-        task_name = TTask(args[1])
+        task_name = TTaskName(args[1])
 
-        if (dct := self.__lists.get(self.__login)) is None:
-            raise RuntimeError('No lists found')
-
-        if (list_ := dct.get(list_name)) is None:
-            raise RuntimeError('List not found')
-
-        if task_name not in list_:
-            raise RuntimeError('Task not found')
-
-        del list_[task_name]
+        list_, i, _ = self._get_task(self.__login, list_name, task_name)
+        del list_.tasks[i]
 
     def onecmd(self, line: str) -> bool:
         try:
