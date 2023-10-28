@@ -38,6 +38,9 @@ class TList:
         self.readers: list[TUserName] = []
         self.editors: list[TUserName] = []
 
+    def disp(self) -> str:
+        return f'{self.owner}/{self.list_name}'
+
 
 class InvalidArgumentError(Exception):
     pass
@@ -95,6 +98,9 @@ class TinyTodoShell(cmd.Cmd):
 
         list_name = TListName(args[0])
 
+        if '/' in list_name:
+            raise RuntimeError('Invalid list name: Use of "/" is not allowed')
+
         if any((self.__login, list_name) == elm for elm in [(elm.owner, elm.list_name) for elm in self.__lists]):
             raise RuntimeError('List already exists')
 
@@ -106,14 +112,10 @@ class TinyTodoShell(cmd.Cmd):
         assert self._assert_login(self.__login)
 
         for list_ in self.__lists:
-            if not (
-                list_.owner == self.__login or
-                self.__login in list_.readers or
-                self.__login in list_.editors
-            ):
+            if not list_.owner == self.__login:
                 continue
 
-            print(list_.list_name)
+            print(list_.disp())
 
     def do_delete_list(self, line: str) -> None:
         args = shlex.split(line)
@@ -127,11 +129,21 @@ class TinyTodoShell(cmd.Cmd):
 
     def do_put_task(self, line: str) -> None:
         args = shlex.split(line)
-        self._assert_args_len(2, args, 'put_task <list_name> <task_name>')
-        assert self._assert_login(self.__login)
+        self._assert_args_len(2, args, 'put_task [<owner_name>/]<list_name> <task_name>')
 
-        owner = self.__login
-        list_name = TListName(args[0])
+        if '/' in args[0]:
+            owner, list_name = args[0].split('/', 1)
+
+            if '/' in list_name:
+                raise RuntimeError('Invalid list name: Use of "/" is not allowed')
+
+            owner = TUserName(owner)
+            list_name = TListName(list_name)
+        else:
+            assert self._assert_login(self.__login)
+            owner = self.__login
+            list_name = TListName(args[0])
+
         task_name = TTaskName(args[1])
 
         task, _ = trap(lambda: self._get_task(owner, list_name, task_name))
@@ -141,7 +153,6 @@ class TinyTodoShell(cmd.Cmd):
 
         _, list_ = self._get_list(owner, list_name)
         list_.tasks.append(TTask(task_name))
-
 
     def do_list_tasks(self, line: str) -> None:
         args = shlex.split(line)
@@ -156,25 +167,47 @@ class TinyTodoShell(cmd.Cmd):
 
     def do_toggle_task(self, line: str) -> None:
         args = shlex.split(line)
-        self._assert_args_len(2, args, 'toggle_task <list_name> <task_name>')
-        assert self._assert_login(self.__login)
+        self._assert_args_len(2, args, 'toggle_task [<owner_name>/]<list_name> <task_name>')
 
-        list_name = TListName(args[0])
+        if '/' in args[0]:
+            owner, list_name = args[0].split('/', 1)
+
+            if '/' in list_name:
+                raise RuntimeError('Invalid list name: Use of "/" is not allowed')
+
+            owner = TUserName(owner)
+            list_name = TListName(list_name)
+        else:
+            assert self._assert_login(self.__login)
+            owner = self.__login
+            list_name = TListName(args[0])
+
         task_name = TTaskName(args[1])
 
-        _, _, task = self._get_task(self.__login, list_name, task_name)
+        _, _, task = self._get_task(owner, list_name, task_name)
 
         task.status = not task.status
 
     def do_delete_task(self, line: str) -> None:
         args = shlex.split(line)
-        self._assert_args_len(2, args, 'delete_task <list_name> <task_name>')
-        assert self._assert_login(self.__login)
+        self._assert_args_len(2, args, 'delete_task [<owner_name>/]<list_name> <task_name>')
 
-        list_name = TListName(args[0])
+        if '/' in args[0]:
+            owner, list_name = args[0].split('/', 1)
+
+            if '/' in list_name:
+                raise RuntimeError('Invalid list name: Use of "/" is not allowed')
+
+            owner = TUserName(owner)
+            list_name = TListName(list_name)
+        else:
+            assert self._assert_login(self.__login)
+            owner = self.__login
+            list_name = TListName(args[0])
+
         task_name = TTaskName(args[1])
 
-        list_, i, _ = self._get_task(self.__login, list_name, task_name)
+        list_, i, _ = self._get_task(owner, list_name, task_name)
         del list_.tasks[i]
 
     def onecmd(self, line: str) -> bool:
