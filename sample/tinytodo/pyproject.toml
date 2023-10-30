@@ -12,6 +12,7 @@ tinytodo = "tinytodo.main:main"
 [tool.poetry.dependencies]
 python = "^3.12"
 yacedar = {path = "../.."}
+pyyaml = "^6.0.1"
 
 [build-system]
 requires = ["poetry-core"]
