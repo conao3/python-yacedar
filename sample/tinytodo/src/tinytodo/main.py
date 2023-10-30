@@ -1,7 +1,11 @@
 import argparse
 import cmd
+import pathlib
 import shlex
-from typing import Callable, Literal, NewType
+from typing import Any, Callable, Literal, NewType
+import typing
+
+import yaml
 
 
 def trap[T](fn: Callable[[], T]) -> tuple[T, Literal[None]] | tuple[Literal[None], Exception]:
@@ -17,10 +21,15 @@ TListNo = NewType('TListNo', int)
 
 
 class TTask:
-    def __init__(self, task_no: TTaskNo, task_name: str) -> None:
+    def __init__(
+        self,
+        task_no: TTaskNo,
+        task_name: str,
+        status: bool = False
+    ) -> None:
         self.task_no = task_no
         self.task_name = task_name
-        self.status = False
+        self.status = status
 
     def disp_oneline(self) -> str:
         return f'{self.task_no}) {"[x]" if self.status else "[ ]"} {self.task_name}'
@@ -35,16 +44,19 @@ class TList:
         owner: TUserName,
         list_no: int,
         list_name: str,
-        tasks: dict[TTaskNo, TTask] = {}
+        tasks: dict[TTaskNo, TTask] = {},
+        readers: list[TUserName] = [],
+        editors: list[TUserName] = [],
+        counter_task_no: int = 0,
     ) -> None:
         self.owner = owner
         self.list_no = list_no
         self.list_name = list_name
         self.tasks = tasks
-        self.readers: list[TUserName] = []
-        self.editors: list[TUserName] = []
+        self.readers = readers
+        self.editors = editors
 
-        self.counter_task_no = 0
+        self.counter_task_no = counter_task_no
 
     def new_task_no(self) -> TTaskNo:
         ret = TTaskNo(self.counter_task_no)
@@ -64,16 +76,52 @@ Tasks:
 
 
 class TUser:
-    def __init__(self) -> None:
-        self.name: TUserName
-        self.lists: dict[TListNo, TList] = {}
+    def __init__(
+        self,
+        name: TUserName,
+        lists: dict[TListNo, TList] = {},
+        counter_list_no: int = 0,
+    ) -> None:
+        self.name = name
+        self.lists = lists
 
-        self.counter_list_no = 0
+        self.counter_list_no = counter_list_no
 
     def new_list_no(self) -> TListNo:
         ret = TListNo(self.counter_list_no)
         self.counter_list_no += 1
         return ret
+
+
+def new_database(dct: dict[str, Any]) -> dict[TUserName, TUser]:
+    def new_task(dct: dict[str, Any]) -> TTask:
+        return TTask(
+            TTaskNo(dct['task_no']),
+            dct['task_name'],
+            dct['status'],
+        )
+
+    def new_list(dct: dict[str, Any]) -> TList:
+        tasks = {no: new_task(task_dct) for no, task_dct in dct['tasks'].items()}
+        return TList(
+            owner=TUserName(dct['owner']),
+            list_no=TListNo(dct['list_no']),
+            list_name=dct['list_name'],
+            tasks=tasks,
+            readers=typing.cast(list[TUserName], dct.get('readers', [])),
+            editors=typing.cast(list[TUserName], dct.get('editors', [])),
+            counter_task_no=max(task.task_no for task in tasks.values()),
+        )
+
+    def new_user(dct: dict[str, Any]) -> TUser:
+        lists = {no: new_list(list_dct) for no, list_dct in dct['lists'].items()}
+        return TUser(
+            name=TUserName(dct['name']),
+            lists=lists,
+            counter_list_no=max(list_.list_no for list_ in lists.values()),
+        )
+
+    return {TUserName(name): new_user(user_dct) for name, user_dct in dct.items()}
 
 
 class InvalidArgumentError(Exception):
@@ -110,7 +158,7 @@ class TinyTodoShell(cmd.Cmd):
         self.__login = TUserName(args[0])
 
         if self.__login not in self.__lists:
-            self.__lists[self.__login] = TUser()
+            self.__lists[self.__login] = TUser(name=self.__login)
 
         print(f'Logged in as {self.__login}')
 
@@ -215,7 +263,14 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
+    assets_path = pathlib.Path(__file__).parent / 'assets'
+    initial_data_file = assets_path / 'initial_data.yml'
+
+    initial_data = yaml.safe_load(initial_data_file.read_text())
+
     try:
-        TinyTodoShell().cmdloop()
+        app = TinyTodoShell()
+        app._TinyTodoShell__lists = new_database(initial_data)  # type: ignore
+        app.cmdloop()
     except KeyboardInterrupt:
         print('')
