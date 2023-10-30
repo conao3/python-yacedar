@@ -206,6 +206,24 @@ class TinyTodoShell(cmd.Cmd):
 
         print(f'List {list_no} deleted.')
 
+    def do_share_list(self, line: str) -> None:
+        args = shlex.split(line)
+        self._assert_args_len(3, args, 'share_list <list_no> <user_name> <reader|editer>')
+
+        list_no = TListNo(int(args[0]))
+        user_name = TUserName(args[1])
+        role = args[2]
+
+        if role not in ['reader', 'editer']:
+            raise InvalidArgumentError('share_list <list_no> <user_name> <reader|editer>')
+
+        list_ = self.__lists[self.__login].lists[list_no]
+        auth_users = getattr(list_, f'{role}s')
+        if user_name in auth_users:
+            raise InvalidArgumentError(f'{user_name} is already {role}.')
+
+        auth_users.append(user_name)
+
     def do_put_task(self, line: str) -> None:
         args = shlex.split(line)
         self._assert_args_len(2, args, 'put_task <list_no> <task_name>')
