@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import argparse
 import cmd
 import pathlib
 import shlex
+import textwrap
 from typing import Any, Callable, Literal, NewType
 import typing
 
@@ -20,108 +23,130 @@ TTaskNo = NewType('TTaskNo', int)
 TListNo = NewType('TListNo', int)
 
 
-class TTask:
+class TUser:
     def __init__(
         self,
-        task_no: TTaskNo,
-        task_name: str,
-        status: bool = False
-    ) -> None:
-        self.task_no = task_no
-        self.task_name = task_name
-        self.status = status
+        name: TUserName,
+    ):
+        self.name = name
 
-    def disp_oneline(self) -> str:
-        return f'{self.task_no}) {"[x]" if self.status else "[ ]"} {self.task_name}'
-
-    def disp(self) -> str:
-        return f'{"[x]" if self.status else "[ ]"} {self.task_name}'
+    def disp(self, oneline: bool = False) -> str:
+        return f'User Name: {self.name}'
 
 
 class TList:
     def __init__(
         self,
-        owner: TUserName,
-        list_no: int,
+        list_no: TListNo,
         list_name: str,
-        tasks: dict[TTaskNo, TTask] = {},
-        readers: list[TUserName] = [],
-        editors: list[TUserName] = [],
-        counter_task_no: int = 0,
-    ) -> None:
-        self.owner = owner
+        owner: TUserName,
+        reader: list[TUserName] = [],
+        editer: list[TUserName] = [],
+    ):
         self.list_no = list_no
         self.list_name = list_name
-        self.tasks = tasks
-        self.readers = readers
-        self.editors = editors
+        self.owner = owner
+        self.reader = reader
+        self.editer = editer
 
-        self.counter_task_no = counter_task_no
+    def disp(self, oneline: bool = False) -> str:
+        if oneline:
+            return f'{self.owner}/{self.list_no}: {self.list_name}'
 
-    def new_task_no(self) -> TTaskNo:
-        ret = TTaskNo(self.counter_task_no)
-        self.counter_task_no += 1
-        return ret
-
-    def disp_oneline(self) -> str:
-        return f'{self.owner}/{self.list_no}: {self.list_name}'
-
-    def disp(self) -> str:
         return f'''\
 Owner: {self.owner}
 List No: {self.list_no}
-List Name: {self.list_name}
-Tasks:
-{"\n".join(f"  {task.disp_oneline()}" for task in self.tasks.values())}'''
+List Name: {self.list_name}'''
 
 
-class TUser:
+class TTask:
     def __init__(
         self,
-        name: TUserName,
+        list_no: TListNo,
+        task_no: TTaskNo,
+        task_name: str,
+        status: bool = False
+    ):
+        self.list_no = list_no
+        self.task_no = task_no
+        self.task_name = task_name
+        self.status = status
+
+    def disp(self, oneline: bool = False) -> str:
+        return f'{"[x]" if self.status else "[ ]"} {self.task_name}'
+
+
+class TDatabase:
+    def __init__(
+        self,
+        users: dict[TUserName, TUser] = {},
         lists: dict[TListNo, TList] = {},
-        counter_list_no: int = 0,
-    ) -> None:
-        self.name = name
+        tasks: dict[TListNo, dict[TTaskNo, TTask]] = {},
+    ):
+        self.users = users
         self.lists = lists
+        self.tasks = tasks
 
-        self.counter_list_no = counter_list_no
-
-    def new_list_no(self) -> TListNo:
-        ret = TListNo(self.counter_list_no)
-        self.counter_list_no += 1
-        return ret
-
-
-def new_database(dct: dict[str, Any]) -> dict[TUserName, TUser]:
-    def new_task(dct: dict[str, Any]) -> TTask:
-        return TTask(
-            TTaskNo(dct['task_no']),
-            dct['task_name'],
-            dct['status'],
+    @classmethod
+    def from_dict(cls, dct: dict[str, Any]) -> TDatabase:
+        return cls(
+            users={
+                TUserName(name): TUser(name=name)
+                for name in dct['users']
+            },
+            lists={
+                TListNo(no): TList(
+                    list_no=no,
+                    list_name=val['list_name'],
+                    owner=TUserName(val['owner'])
+                )
+                for no, val in dct['lists'].items()
+            },
+            tasks={
+                TListNo(list_no): {
+                    TTaskNo(task_no): TTask(
+                        list_no=TListNo(list_no),
+                        task_no=TTaskNo(task_no),
+                        task_name=task['task_name'],
+                        status=task['status']
+                    )
+                    for task_no, task in list_.items()
+                }
+                for list_no, list_ in dct['tasks'].items()
+            },
         )
 
-    def new_list(dct: dict[str, Any]) -> TList:
-        tasks = {no: new_task(task_dct) for no, task_dct in dct['tasks'].items()}
-        return TList(
-            owner=TUserName(dct['owner']),
-            list_no=TListNo(dct['list_no']),
-            list_name=dct['list_name'],
-            tasks=tasks,
-            readers=typing.cast(list[TUserName], dct.get('readers', [])),
-            editors=typing.cast(list[TUserName], dct.get('editors', [])),
-            counter_task_no=max(task.task_no for task in tasks.values()),
-        )
+    def put_user(self, obj: TUser) -> None:
+        self.users[obj.name] = obj
 
-    def new_user(dct: dict[str, Any]) -> TUser:
-        lists = {no: new_list(list_dct) for no, list_dct in dct['lists'].items()}
-        return TUser(
-            name=TUserName(dct['name']),
-            lists=lists,
-            counter_list_no=max(list_.list_no for list_ in lists.values()),
-        )
+    def put_list(self, obj: TList) -> None:
+        self.lists[obj.list_no] = obj
 
-    return {TUserName(name): new_user(user_dct) for name, user_dct in dct.items()}
+    def put_task(self, obj: TTask) -> None:
+        if obj.list_no not in self.tasks:
+            self.tasks[obj.list_no] = {}
+
+        self.tasks[obj.list_no][obj.task_no] = obj
+
+    def get_new_list_no(self) -> TListNo:
+        return TListNo(max(self.lists.keys()) + 1)
+
+    def get_new_task_no(self, list_no: TListNo) -> TTaskNo:
+        return TTaskNo(max(self.tasks[list_no].keys()) + 1)
+
+    def disp_user(self, obj: TUser) -> str:
+        return obj.disp()
+
+    def disp_list(self, obj: TList) -> str:
+        tasks = '\n'.join([task.disp(oneline=True) for task in self.tasks[obj.list_no].values()])
+
+        return f'''\
+{obj.disp()}
+Tasks:
+{textwrap.indent(tasks, '  ')}'''
+
+    def disp_task(self, obj: TTask) -> str:
+        return obj.disp()
 
 
 class InvalidArgumentError(Exception):
@@ -133,7 +158,7 @@ class TinyTodoShell(cmd.Cmd):
     prompt = 'tinytodo(guest)> '
 
     __login: TUserName = TUserName('guest')
-    __lists: dict[TUserName, TUser] = {}
+    __db: TDatabase = TDatabase()
 
     def _assert_args_len(self, expected_len: int, args: list[str], help: str) -> None:
         if len(args) != expected_len:
@@ -157,8 +182,8 @@ class TinyTodoShell(cmd.Cmd):
 
         self.__login = TUserName(args[0])
 
-        if self.__login not in self.__lists:
-            self.__lists[self.__login] = TUser(name=self.__login)
+        if self.__login not in self.__db.users:
+            self.__db.users[self.__login] = TUser(name=self.__login)
 
         print(f'Logged in as {self.__login}')
 
@@ -174,10 +199,13 @@ class TinyTodoShell(cmd.Cmd):
         args = shlex.split(line)
         self._assert_args_len(1, args, 'put_list <list_name>')
 
-        user = self.__lists[self.__login]
-        list_no = user.new_list_no()
+        list_no = self.__db.get_new_list_no()
 
-        user.lists[list_no] = TList(self.__login, list_no, args[0])
+        self.__db.put_list(TList(
+            list_no=list_no,
+            list_name=args[0],
+            owner=self.__login,
+        ))
 
         print(f'List {list_no} created.')
 
@@ -185,8 +213,8 @@ class TinyTodoShell(cmd.Cmd):
         args = shlex.split(line)
         self._assert_args_len(0, args, 'get_lists')
 
-        for list_ in self.__lists[self.__login].lists.values():
-            print(list_.disp_oneline())
+        for list_ in self.__db.lists.values():
+            print(list_.disp(oneline=True))
 
     def do_get_list(self, line: str) -> None:
         args = shlex.split(line)
@@ -194,7 +222,7 @@ class TinyTodoShell(cmd.Cmd):
 
         list_no = TListNo(int(args[0]))
 
-        print(self.__lists[self.__login].lists[list_no].disp())
+        print(self.__db.disp_list(self.__db.lists[list_no]))
 
     def do_delete_list(self, line: str) -> None:
         args = shlex.split(line)
@@ -202,7 +230,7 @@ class TinyTodoShell(cmd.Cmd):
 
         list_no = TListNo(int(args[0]))
 
-        del self.__lists[self.__login].lists[list_no]
+        del self.__db.lists[list_no]
 
         print(f'List {list_no} deleted.')
 
@@ -217,7 +245,7 @@ class TinyTodoShell(cmd.Cmd):
         if role not in ['reader', 'editer']:
             raise InvalidArgumentError('share_list <list_no> <user_name> <reader|editer>')
 
-        list_ = self.__lists[self.__login].lists[list_no]
+        list_ = self.__db.lists[list_no]
         auth_users = getattr(list_, f'{role}s')
         if user_name in auth_users:
             raise InvalidArgumentError(f'{user_name} is already {role}.')
@@ -229,12 +257,15 @@ class TinyTodoShell(cmd.Cmd):
         self._assert_args_len(2, args, 'put_task <list_no> <task_name>')
 
         list_no = TListNo(int(args[0]))
+        task_name = args[1]
 
-        user = self.__lists[self.__login]
-        list_ = user.lists[list_no]
-        task_no = list_.new_task_no()
+        task_no = self.__db.get_new_task_no(list_no)
 
-        list_.tasks[task_no] = TTask(task_no, args[1])
+        self.__db.put_task(TTask(
+            list_no=list_no,
+            task_no=task_no,
+            task_name=task_name,
+        ))
 
         print(f'Task {task_no} created on List {list_no}.')
 
@@ -245,7 +276,7 @@ class TinyTodoShell(cmd.Cmd):
         list_no = TListNo(int(args[0]))
         task_no = TTaskNo(int(args[1]))
 
-        task = self.__lists[self.__login].lists[list_no].tasks[task_no]
+        task = self.__db.tasks[list_no][task_no]
         task.status = not task.status
 
         print(f'Task {task_no} toggled on List {list_no}.')
@@ -257,7 +288,7 @@ class TinyTodoShell(cmd.Cmd):
         list_no = TListNo(int(args[0]))
         task_no = TTaskNo(int(args[1]))
 
-        del self.__lists[self.__login].lists[list_no].tasks[task_no]
+        del self.__db.tasks[list_no][task_no]
 
         print(f'Task {task_no} deleted on List {list_no}.')
 
@@ -288,7 +319,7 @@ def main() -> None:
 
     try:
         app = TinyTodoShell()
-        app._TinyTodoShell__lists = new_database(initial_data)  # type: ignore
+        app._TinyTodoShell__db = TDatabase.from_dict(initial_data)  # type: ignore
         app.cmdloop()
     except KeyboardInterrupt:
         print('')

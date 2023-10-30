@@ -1,18 +1,30 @@
-andrew:
-  name: andrew
-  lists:
+users:
+  emina:
+    user_name: emina
+  andrew:
+    user_name: andrew
+  kesha:
+    user_name: kesha
+  aaron:
+    user_name: aaron
+
+lists:
+  0:
+    list_no: 0
+    list_name: Cedar blog post
+    owner: andrew
+    reader: []
+    editors: []
+
+tasks:
+  0:
     0:
-      owner: andrew
       list_no: 0
-      list_name: Cedar blog post
-      tasks:
-        0:
-          task_no: 0
-          task_name: Draft the post
-          status: True
-        1:
-          task_no: 1
-          task_name: Revise and polish
-          status: False
-      reader: []
-      editors: []
+      task_no: 0
+      task_name: Draft the post
+      status: True
+    1:
+      list_no: 0
+      task_no: 1
+      task_name: Revise and polish
+      status: False
