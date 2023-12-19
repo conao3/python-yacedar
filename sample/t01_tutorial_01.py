@@ -14,9 +14,9 @@ permit(
 ''')
 
 request = yacedar.Request(
-    principal = yacedar.EntityUid('User', 'alice'),
-    action = yacedar.EntityUid('Action', 'update'),
-    resource = yacedar.EntityUid('Photo', 'VacationPhoto94.jpg'),
+    principal='User::"alice"',
+    action='Action::"update"',
+    resource='Photo::"VacationPhoto94.jpg"',
 )
 
 authorizer = yacedar.Authorizer()

@@ -4,19 +4,13 @@ import enum
 from typing import Any
 
 
-class EntityUid:
-    def __new__(cls, type_name: str, name: str) -> EntityUid: ...
-
-class Context:
-    def __new__(cls, value: dict[str, Any]) -> Context: ...
-
 class Request:
     def __new__(
         cls,
-        principal: EntityUid | None = None,
-        action: EntityUid | None = None,
-        resource: EntityUid | None = None,
-        context: Context | None = None,
+        principal: str | None = None,
+        action: str | None = None,
+        resource: str | None = None,
+        context: dict[str, Any] | None = None,
     ) -> Request: ...
 
 class PolicySet:

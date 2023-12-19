@@ -42,9 +42,9 @@ entities = yacedar.Entities([
 ])
 
 request = yacedar.Request(
-    principal = yacedar.EntityUid('User', 'alice'),
-    action = yacedar.EntityUid('Action', 'view'),
-    resource = yacedar.EntityUid('Photo', 'VacationPhoto94.jpg'),
+    principal='User::"alice"',
+    action='Action::"view"',
+    resource='Photo::"VacationPhoto94.jpg"',
 )
 
 authorizer = yacedar.Authorizer()

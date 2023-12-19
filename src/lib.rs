@@ -40,13 +40,16 @@ struct Request(cedar::Request);
 #[pymethods]
 impl Request {
     #[new]
-    fn new(principal: Option<&EntityUid>, action: Option<&EntityUid>, resource: Option<&EntityUid>, context: Option<&Context>) -> Self {
-        let principal = principal.map(|p| p.0.clone());
-        let action = action.map(|a| a.0.clone());
-        let resource = resource.map(|r| r.0.clone());
-        let context = context.map(|c| c.0.clone()).unwrap_or(cedar::Context::empty());
-
-        Self(cedar::Request::new(principal, action, resource, context, None).expect("failed"))
+    fn new(principal: Option<&str>, action: Option<&str>, resource: Option<&str>, context: Option<&Context>) -> Self {
+        Self(
+            cedar::Request::new(
+                principal.map(|p| p.parse().unwrap()),
+                action.map(|a| a.parse().unwrap()),
+                resource.map(|r| r.parse().unwrap()),
+                context.map(|c| c.0.clone()).unwrap_or(cedar::Context::empty()),
+                None
+            ).unwrap()
+        )
     }
 }
 
@@ -156,4 +159,29 @@ fn yacedar(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Response>()?;
     m.add_class::<Decision>()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_entity_uid() {
+        let entity_uid = EntityUid::new("type", "name");
+        assert_eq!(entity_uid.0.type_name().to_string(), "type");
+        assert_eq!(entity_uid.0.id().to_string(), "name");
+    }
+
+    #[test]
+    fn test_request() {
+        let request = Request::new(
+            Some(r#"User::"alice""#),
+            Some(r#"Action::"view""#),
+            Some(r#"File::"93""#),
+            None,
+        );
+        assert_eq!(request.0.principal().unwrap().to_string(), r#"User::"alice""#);
+        assert_eq!(request.0.action().unwrap().to_string(), r#"Action::"view""#);
+        assert_eq!(request.0.resource().unwrap().to_string(), r#"File::"93""#);
+    }
 }

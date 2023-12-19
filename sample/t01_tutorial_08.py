@@ -17,14 +17,14 @@ when {
 ''')
 
 request = yacedar.Request(
-    principal = yacedar.EntityUid('User', 'alice'),
-    action = yacedar.EntityUid('Action', 'update'),
-    resource = yacedar.EntityUid('Photo', 'flower.jpg'),
-    context = yacedar.Context({
+    principal='User::"alice"',
+    action='Action::"update"',
+    resource='Photo::"flower.jpg"',
+    context={
         'mfa_authenticated': True,
         'request_client_ip': '222.222.222.222',
         'oidc_scope': 'profile',
-    }),
+    },
 )
 
 authorizer = yacedar.Authorizer()
