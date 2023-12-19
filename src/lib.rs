@@ -46,7 +46,7 @@ impl Request {
         let resource = resource.map(|r| r.0.clone());
         let context = context.map(|c| c.0.clone()).unwrap_or(cedar::Context::empty());
 
-        Self(cedar::Request::new(principal, action, resource, context))
+        Self(cedar::Request::new(principal, action, resource, context, None).expect("failed"))
     }
 }
 
