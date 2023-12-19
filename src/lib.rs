@@ -123,7 +123,7 @@ impl Response {
 #[pymethods]
 impl Response {
     fn diagnostics(&self) -> String {
-        self.response.diagnostics().reason().map(|r| r.to_string()).collect()
+        self.response.diagnostics().errors().map(|r| r.to_string()).collect()
     }
 
     #[getter]
