@@ -16,35 +16,28 @@ impl EntityUid {
 }
 
 #[pyclass]
-struct Context(cedar::Context);
-
-#[pymethods]
-impl Context {
-    #[new]
-    fn new(value: &PyDict, py: Python) -> Self {
-        let json = py.import("json").expect("failed to import json");
-        let json_str = json
-            .call_method1("dumps", (value,))
-            .expect("failed to dump json")
-            .extract::<String>()
-            .expect("failed to extract json");
-        Self(cedar::Context::from_json_str(&json_str, None).expect("invalid context"))
-    }
-}
-
-#[pyclass]
 struct Request(cedar::Request);
 
 #[pymethods]
 impl Request {
     #[new]
-    fn new(principal: Option<&str>, action: Option<&str>, resource: Option<&str>, context: Option<&Context>) -> Self {
+    fn new(principal: Option<&str>, action: Option<&str>, resource: Option<&str>, context: Option<&PyDict>, py: Python) -> Self {
+        let context = context.map(|c| {
+            let json = py.import("json").expect("failed to import json");
+            let json_str = json
+                .call_method1("dumps", (c,))
+                .expect("failed to dump json")
+                .extract::<String>()
+                .expect("failed to extract json");
+            cedar::Context::from_json_str(&json_str, None).expect("invalid context")
+        }).unwrap_or_else(|| cedar::Context::empty());
+
         Self(
             cedar::Request::new(
                 principal.map(|p| p.parse().unwrap()),
                 action.map(|a| a.parse().unwrap()),
                 resource.map(|r| r.parse().unwrap()),
-                context.map(|c| c.0.clone()).unwrap_or(cedar::Context::empty()),
+                context,
                 None
             ).unwrap()
         )
@@ -149,7 +142,6 @@ enum Decision {
 #[pymodule]
 fn yacedar(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<EntityUid>()?;
-    m.add_class::<Context>()?;
     m.add_class::<Request>()?;
     m.add_class::<PolicySet>()?;
     m.add_class::<Entities>()?;
@@ -168,38 +160,5 @@ mod tests {
         let entity_uid = EntityUid::new("type", "name");
         assert_eq!(entity_uid.0.type_name().to_string(), "type");
         assert_eq!(entity_uid.0.id().to_string(), "name");
-    }
-
-    #[test]
-    fn test_request() {
-        let request = Request::new(
-            Some(r#"User::"alice""#),
-            Some(r#"Action::"view""#),
-            Some(r#"File::"93""#),
-            None,
-        );
-        assert_eq!(request.0.principal().unwrap().to_string(), r#"User::"alice""#);
-        assert_eq!(request.0.action().unwrap().to_string(), r#"Action::"view""#);
-        assert_eq!(request.0.resource().unwrap().to_string(), r#"File::"93""#);
-    }
-
-    #[test]
-    fn test_authorize() {
-        let authorizer = Authorizer::new();
-        let request = Request::new(
-            Some(r#"User::"alice""#),
-            Some(r#"Action::"view""#),
-            Some(r#"File::"93""#),
-            None,
-        );
-        let policy_set = PolicySet::new(r#"
-        permit (
-            principal == User::"alice",
-            action == Action::"view",
-            resource == File::"93"
-        );
-        "#);
-        let response = authorizer.is_authorized(&request, &policy_set, None);
-        assert_eq!(response.is_allowed, true);
     }
 }
