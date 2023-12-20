@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use pyo3::{prelude::*, types::{PyDict, PyList}};
 use cedar_policy as cedar;
 
@@ -11,8 +9,8 @@ struct EntityUid(cedar::EntityUid);
 impl EntityUid {
     #[new]
     fn new(type_name: &str, name: &str) -> Self {
-        let type_name = cedar::EntityTypeName::from_str(type_name).expect("invalid type_name");
-        let name = cedar::EntityId::from_str(name).expect("invalid id");
+        let type_name = type_name.parse().expect("invalid type_name");
+        let name = name.parse().expect("invalid id");
         Self(cedar::EntityUid::from_type_name_and_id(type_name, name))
     }
 }
@@ -60,7 +58,7 @@ struct PolicySet(cedar::PolicySet);
 impl PolicySet {
     #[new]
     fn new(policies_str: &str) -> Self {
-        Self(cedar::PolicySet::from_str(policies_str).expect("invalid policies"))
+        Self(policies_str.parse().expect("invalid policies"))
     }
 }
 
@@ -183,5 +181,25 @@ mod tests {
         assert_eq!(request.0.principal().unwrap().to_string(), r#"User::"alice""#);
         assert_eq!(request.0.action().unwrap().to_string(), r#"Action::"view""#);
         assert_eq!(request.0.resource().unwrap().to_string(), r#"File::"93""#);
+    }
+
+    #[test]
+    fn test_authorize() {
+        let authorizer = Authorizer::new();
+        let request = Request::new(
+            Some(r#"User::"alice""#),
+            Some(r#"Action::"view""#),
+            Some(r#"File::"93""#),
+            None,
+        );
+        let policy_set = PolicySet::new(r#"
+        permit (
+            principal == User::"alice",
+            action == Action::"view",
+            resource == File::"93"
+        );
+        "#);
+        let response = authorizer.is_authorized(&request, &policy_set, None);
+        assert_eq!(response.is_allowed, true);
     }
 }
