@@ -1,6 +1,8 @@
-use pyo3::{prelude::*, types::{PyDict, PyList}};
 use cedar_policy as cedar;
-
+use pyo3::{
+    prelude::*,
+    types::{PyDict, PyList},
+};
 
 #[pyclass]
 struct EntityUid(cedar::EntityUid);
@@ -21,16 +23,24 @@ struct Request(cedar::Request);
 #[pymethods]
 impl Request {
     #[new]
-    fn new(principal: Option<&str>, action: Option<&str>, resource: Option<&str>, context: Option<&PyDict>, py: Python) -> Self {
-        let context = context.map(|c| {
-            let json = py.import("json").expect("failed to import json");
-            let json_str = json
-                .call_method1("dumps", (c,))
-                .expect("failed to dump json")
-                .extract::<String>()
-                .expect("failed to extract json");
-            cedar::Context::from_json_str(&json_str, None).expect("invalid context")
-        }).unwrap_or_else(|| cedar::Context::empty());
+    fn new(
+        principal: Option<&str>,
+        action: Option<&str>,
+        resource: Option<&str>,
+        context: Option<&Bound<'_, PyDict>>,
+        py: Python<'_>,
+    ) -> Self {
+        let context = context
+            .map(|c| {
+                let json = py.import("json").expect("failed to import json");
+                let json_str = json
+                    .call_method1("dumps", (c,))
+                    .expect("failed to dump json")
+                    .extract::<String>()
+                    .expect("failed to extract json");
+                cedar::Context::from_json_str(&json_str, None).expect("invalid context")
+            })
+            .unwrap_or_else(|| cedar::Context::empty());
 
         Self(
             cedar::Request::new(
@@ -38,8 +48,9 @@ impl Request {
                 action.map(|a| a.parse().unwrap()),
                 resource.map(|r| r.parse().unwrap()),
                 context,
-                None
-            ).unwrap()
+                None,
+            )
+            .unwrap(),
         )
     }
 }
@@ -61,7 +72,7 @@ struct Entities(cedar::Entities);
 #[pymethods]
 impl Entities {
     #[new]
-    fn new(value: &PyList, py: Python) -> Self {
+    fn new(value: &Bound<'_, PyList>, py: Python<'_>) -> Self {
         let json = py.import("json").expect("failed to import json");
         let json_str = json
             .call_method1("dumps", (value,))
@@ -82,17 +93,24 @@ impl Authorizer {
         Self(cedar::Authorizer::new())
     }
 
-    fn is_authorized(&self, request: &Request, policy_set: &PolicySet, entities: Option<&Entities>) -> Response {
+    fn is_authorized(
+        &self,
+        request: &Request,
+        policy_set: &PolicySet,
+        entities: Option<&Entities>,
+    ) -> Response {
         let response = match entities {
             Some(entities) => self.0.is_authorized(&request.0, &policy_set.0, &entities.0),
-            None => self.0.is_authorized(&request.0, &policy_set.0, &cedar::Entities::empty()),
+            None => self
+                .0
+                .is_authorized(&request.0, &policy_set.0, &cedar::Entities::empty()),
         };
         Response::create(response)
     }
 }
 
 #[pyclass]
-struct Response{
+struct Response {
     response: cedar::Response,
     decision: Decision,
     is_allowed: bool,
@@ -117,7 +135,11 @@ impl Response {
 #[pymethods]
 impl Response {
     fn diagnostics(&self) -> String {
-        self.response.diagnostics().errors().map(|r| r.to_string()).collect()
+        self.response
+            .diagnostics()
+            .errors()
+            .map(|r| r.to_string())
+            .collect()
     }
 
     #[getter]
@@ -140,7 +162,7 @@ enum Decision {
 
 /// A Python module implemented in Rust.
 #[pymodule]
-fn yacedar(_py: Python, m: &PyModule) -> PyResult<()> {
+fn yacedar(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<EntityUid>()?;
     m.add_class::<Request>()?;
     m.add_class::<PolicySet>()?;
