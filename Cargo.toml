@@ -9,6 +9,6 @@ name = "yacedar"
 crate-type = ["cdylib"]
 
 [dependencies]
-cedar-policy = "3.0.0"
+cedar-policy = "4.14.0"
 pyo3 = "0.30.1"
-serde_json = "1.0.107"
+serde_json = "1.0.154"
