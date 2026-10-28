@@ -3,6 +3,17 @@ use pyo3::{
     prelude::*,
     types::{PyDict, PyList},
 };
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static UNSPECIFIED_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+fn unspecified_uid() -> cedar::EntityUid {
+    let id = UNSPECIFIED_COUNTER.fetch_add(1, Ordering::Relaxed);
+    cedar::EntityUid::from_type_name_and_id(
+        "Unspecified".parse().expect("invalid type_name"),
+        format!("unspecified-{id}").parse().expect("invalid id"),
+    )
+}
 
 #[pyclass]
 struct EntityUid(cedar::EntityUid);
@@ -23,6 +34,7 @@ struct Request(cedar::Request);
 #[pymethods]
 impl Request {
     #[new]
+    #[pyo3(signature = (principal=None, action=None, resource=None, context=None))]
     fn new(
         principal: Option<&str>,
         action: Option<&str>,
@@ -44,9 +56,9 @@ impl Request {
 
         Self(
             cedar::Request::new(
-                principal.map(|p| p.parse().unwrap()),
-                action.map(|a| a.parse().unwrap()),
-                resource.map(|r| r.parse().unwrap()),
+                principal.map_or_else(unspecified_uid, |p| p.parse().unwrap()),
+                action.map_or_else(unspecified_uid, |a| a.parse().unwrap()),
+                resource.map_or_else(unspecified_uid, |r| r.parse().unwrap()),
                 context,
                 None,
             )
@@ -93,6 +105,7 @@ impl Authorizer {
         Self(cedar::Authorizer::new())
     }
 
+    #[pyo3(signature = (request, policy_set, entities=None))]
     fn is_authorized(
         &self,
         request: &Request,
@@ -181,6 +194,6 @@ mod tests {
     fn test_entity_uid() {
         let entity_uid = EntityUid::new("type", "name");
         assert_eq!(entity_uid.0.type_name().to_string(), "type");
-        assert_eq!(entity_uid.0.id().to_string(), "name");
+        assert_eq!(entity_uid.0.id().unescaped(), "name");
     }
 }
