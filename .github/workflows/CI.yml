@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   linux:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.target == 'x86' && 'ubuntu-24.04' || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -37,7 +37,6 @@ jobs:
           args: --release --out dist --find-interpreter
           sccache: 'true'
           manylinux: auto
-          docker-options: ${{ matrix.target == 'x86' && '--network=host' || '' }}
       - name: Upload wheels
         uses: actions/upload-artifact@v7.0.2
         with:
