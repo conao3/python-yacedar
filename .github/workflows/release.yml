@@ -1,0 +1,264 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: Version bump type
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+permissions:
+  contents: read
+concurrency:
+  group: release
+env:
+  CRATE: yacedar
+  PACKAGE: yacedar
+  VERSION_FILES: Cargo.toml Cargo.lock
+  DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+defaults:
+  run:
+    shell: bash
+jobs:
+  check:
+    name: Bump version
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Require the default branch
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]]; then
+            echo "::error::Dispatch the release workflow from $DEFAULT_BRANCH."
+            exit 1
+          fi
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Choose version
+        id: version
+        env:
+          BUMP: ${{ inputs.version_bump }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current=$(cargo metadata --locked --no-deps --format-version 1 | jq -er '.packages[] | select(.name == env.CRATE) | .version')
+          IFS=. read -r major minor patch <<< "$current"
+          case "$BUMP" in
+            major) version="$((major + 1)).0.0" ;;
+            minor) version="$major.$((minor + 1)).0" ;;
+            patch) version="$major.$minor.$((patch + 1))" ;;
+          esac
+          existing=$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/v$version" --jq "[.[] | select(.ref == \"refs/tags/v$version\")] | length")
+          if [[ "$existing" != 0 ]]; then
+            echo "::error::Tag v$version already exists."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Commit version bump
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
+          cargo update --workspace
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          read -ra files <<< "$VERSION_FILES"
+          git commit -m "Bump version to $VERSION" -- "${files[@]}"
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1.51.0
+        with:
+          command: sdist
+          args: --out dist
+      - name: Verify sdist
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: ls "dist/$PACKAGE-$VERSION.tar.gz"
+      - name: Bundle the version commit
+        run: git bundle create "$RUNNER_TEMP/release.bundle" "$GITHUB_SHA..HEAD"
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: release-bundle
+          path: ${{ runner.temp }}/release.bundle
+          retention-days: 1
+
+  tag:
+    name: Push commit and tag
+    needs: [check]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: release-bundle
+          path: ${{ runner.temp }}
+      - name: Push commit and tag
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          git fetch "$RUNNER_TEMP/release.bundle" HEAD
+          commit=$(git rev-parse FETCH_HEAD)
+          if [[ "$(git rev-parse "$commit^")" != "$GITHUB_SHA" ]]; then
+            echo "::error::The version commit is not a child of $GITHUB_SHA."
+            exit 1
+          fi
+          read -ra allowed <<< "$VERSION_FILES"
+          while read -r file; do
+            if [[ " ${allowed[*]} " != *" $file "* ]]; then
+              echo "::error::The version commit changes $file."
+              exit 1
+            fi
+          done < <(git diff --name-only "$GITHUB_SHA" "$commit")
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" -m "$PACKAGE v$VERSION" "$commit"
+          git push --atomic origin "$commit:refs/heads/$DEFAULT_BRANCH" "refs/tags/v$VERSION"
+
+  linux:
+    needs: [check, tag]
+    runs-on: ${{ matrix.target == 'x86' && 'ubuntu-24.04' || 'ubuntu-latest' }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64, x86, aarch64, armv7]
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: refs/tags/v${{ needs.check.outputs.version }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.11'
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1.51.0
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --find-interpreter
+          manylinux: auto
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: wheels-linux-${{ matrix.target }}
+          path: dist
+
+  windows:
+    needs: [check, tag]
+    runs-on: windows-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x64, x86]
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: refs/tags/v${{ needs.check.outputs.version }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.11'
+          architecture: ${{ matrix.target }}
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1.51.0
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --find-interpreter
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: wheels-windows-${{ matrix.target }}
+          path: dist
+
+  macos:
+    needs: [check, tag]
+    runs-on: macos-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: refs/tags/v${{ needs.check.outputs.version }}
+          persist-credentials: false
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.11'
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1.51.0
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --find-interpreter
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: wheels-macos-${{ matrix.target }}
+          path: dist
+
+  sdist:
+    needs: [check, tag]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: refs/tags/v${{ needs.check.outputs.version }}
+          persist-credentials: false
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1.51.0
+        with:
+          command: sdist
+          args: --out dist
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: wheels-sdist
+          path: dist
+
+  publish:
+    name: Publish to PyPI
+    needs: [check, linux, windows, macos, sdist]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          pattern: wheels-*
+          path: dist
+          merge-multiple: true
+      - name: Publish to PyPI
+        uses: PyO3/maturin-action@v1.51.0
+        env:
+          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        with:
+          command: upload
+          args: --non-interactive --skip-existing dist/*
+
+  github-release:
+    name: Create GitHub Release
+    needs: [check, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$PACKAGE v$VERSION" --generate-notes
