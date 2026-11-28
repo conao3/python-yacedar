@@ -115,7 +115,7 @@ Run the Release workflow from `master`:
 gh workflow run release.yml --ref master -f version_bump=patch
 ```
 
-The run bumps the version in `Cargo.toml` and `Cargo.lock`, pushes the version commit to `master` together with the annotated tag `v<version>`, builds the wheels and the sdist from that tag, publishes them to PyPI with the `PYPI_API_TOKEN` repository secret, and creates the GitHub Release.
+The run bumps the version in `Cargo.toml` and `Cargo.lock`, pushes the version commit to `master` together with the annotated tag `v<version>`, builds the wheels and the sdist from that tag, publishes them to PyPI through Trusted Publishing from the `publish` job in the `pypi` environment, and creates the GitHub Release. The PyPI project `yacedar` trusts the workflow `release.yml` of `conao3/python-yacedar` with the environment `pypi`, which deploys only from `master`.
 
 ## Links
 
